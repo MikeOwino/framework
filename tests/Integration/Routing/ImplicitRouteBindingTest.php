@@ -18,27 +18,11 @@ class ImplicitRouteBindingTest extends TestCase
         'routes/testbench.php',
     ];
 
-    /**
-     * Teardown the test environment.
-     */
     protected function tearDown(): void
     {
         $this->tearDownInteractsWithPublishedFiles();
 
         parent::tearDown();
-    }
-
-    protected function defineEnvironment($app)
-    {
-        $app['config']->set('app.debug', 'true');
-
-        $app['config']->set('database.default', 'testbench');
-
-        $app['config']->set('database.connections.testbench', [
-            'driver' => 'sqlite',
-            'database' => ':memory:',
-            'prefix' => '',
-        ]);
     }
 
     protected function defineDatabaseMigrations(): void
@@ -156,6 +140,35 @@ PHP);
         $response = $this->getJson("/user/{$user->id}/post/{$post->id}");
 
         $response->assertNotFound();
+    }
+
+    public function testEnforceScopingImplicitRouteBindingsWithTrashedAndChildWithNoSoftDeleteTrait()
+    {
+        $user = ImplicitBindingUser::create(['name' => 'Dries']);
+
+        $post = $user->posts()->create();
+
+        $user->delete();
+
+        config(['app.key' => str_repeat('a', 32)]);
+        Route::scopeBindings()->group(function () {
+            Route::get('/user/{user}/post/{post}', function (ImplicitBindingUser $user, ImplicitBindingPost $post) {
+                return [$user, $post];
+            })->middleware(['web'])->withTrashed();
+        });
+
+        $response = $this->getJson("/user/{$user->id}/post/{$post->id}");
+        $response->assertOk();
+        $response->assertJson([
+            [
+                'id' => $user->id,
+                'name' => $user->name,
+            ],
+            [
+                'id' => 1,
+                'user_id' => 1,
+            ],
+        ]);
     }
 
     public function testEnforceScopingImplicitRouteBindingsWithRouteCachingEnabled()

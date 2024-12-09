@@ -17,12 +17,15 @@ use InvalidArgumentException;
  * @method \Illuminate\Routing\Route options(string $uri, \Closure|array|string|null $action = null)
  * @method \Illuminate\Routing\Route any(string $uri, \Closure|array|string|null $action = null)
  * @method \Illuminate\Routing\RouteRegistrar as(string $value)
+ * @method \Illuminate\Routing\RouteRegistrar controller(string $controller)
  * @method \Illuminate\Routing\RouteRegistrar domain(string $value)
  * @method \Illuminate\Routing\RouteRegistrar middleware(array|string|null $middleware)
  * @method \Illuminate\Routing\RouteRegistrar name(string $value)
  * @method \Illuminate\Routing\RouteRegistrar namespace(string|null $value)
  * @method \Illuminate\Routing\RouteRegistrar prefix(string  $prefix)
+ * @method \Illuminate\Routing\RouteRegistrar scopeBindings()
  * @method \Illuminate\Routing\RouteRegistrar where(array  $where)
+ * @method \Illuminate\Routing\RouteRegistrar withoutMiddleware(array|string  $middleware)
  */
 class RouteRegistrar
 {
@@ -56,6 +59,7 @@ class RouteRegistrar
      */
     protected $allowedAttributes = [
         'as',
+        'controller',
         'domain',
         'middleware',
         'name',
@@ -63,6 +67,7 @@ class RouteRegistrar
         'prefix',
         'scopeBindings',
         'where',
+        'withoutMiddleware',
     ];
 
     /**
@@ -73,6 +78,7 @@ class RouteRegistrar
     protected $aliases = [
         'name' => 'as',
         'scopeBindings' => 'scope_bindings',
+        'withoutMiddleware' => 'excluded_middleware',
     ];
 
     /**
@@ -107,7 +113,15 @@ class RouteRegistrar
             }
         }
 
-        $this->attributes[Arr::get($this->aliases, $key, $key)] = $value;
+        $attributeKey = Arr::get($this->aliases, $key, $key);
+
+        if ($key === 'withoutMiddleware') {
+            $value = array_merge(
+                (array) ($this->attributes[$attributeKey] ?? []), Arr::wrap($value)
+            );
+        }
+
+        $this->attributes[$attributeKey] = $value;
 
         return $this;
     }
@@ -230,7 +244,7 @@ class RouteRegistrar
                 return $this->attribute($method, is_array($parameters[0]) ? $parameters[0] : $parameters);
             }
 
-            return $this->attribute($method, $parameters[0] ?? true);
+            return $this->attribute($method, array_key_exists(0, $parameters) ? $parameters[0] : true);
         }
 
         throw new BadMethodCallException(sprintf(
